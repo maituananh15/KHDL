@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Gợi ý Phim</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1>🎬 MovieRec</h1>
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <button class="btn btn-red" onclick="showHome()">Trang chủ</button>
+                <button class="btn btn-red" onclick="showMovies()">Danh sách phim</button>
+                <button class="btn btn-red" onclick="showRecommendations()">Gợi ý</button>
+                <button class="btn btn-red" onclick="showHistory()">Lịch sử</button>
+                <button class="btn btn-red" onclick="showDashboard()">Dashboard</button>
+                <div id="authButtons">
+                    <button class="btn btn-primary" onclick="showLogin()">Đăng nhập</button>
+                    <button class="btn btn-secondary" onclick="showRegister()">Đăng ký</button>
+                </div>
+                <div id="userMenu" style="display: none;">
+                    <span id="username"></span>
+                    <button class="btn btn-danger" onclick="logout()">Đăng xuất</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Home Page -->
+        <div id="homePage" class="page">
+            <div class="hero">
+                <h2>Chào mừng đến với hệ thống gợi ý phim</h2>
+                <p>Khám phá những bộ phim phù hợp với sở thích của bạn</p>
+                <button class="btn btn-large btn-red" onclick="showMovies()">Xem danh sách phim</button>
+            </div>
+            
+            <div class="trending-section">
+                <h2 class="section-title">🔥 Phim đang thịnh hành</h2>
+                <div id="trendingMoviesGrid" class="movies-grid"></div>
+            </div>
+        </div>
+
+        <!-- Login Page -->
+        <div id="loginPage" class="page" style="display: none;">
+            <div class="auth-container">
+                <h2>Đăng nhập</h2>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Đăng nhập</button>
+                    <p class="text-center">
+                        Chưa có tài khoản? <a href="#" onclick="showRegister()">Đăng ký ngay</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Register Page -->
+        <div id="registerPage" class="page" style="display: none;">
+            <div class="auth-container">
+                <h2>Đăng ký</h2>
+                <form id="registerForm" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label>Tên người dùng</label>
+                        <input type="text" id="registerUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" id="registerPassword" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Đăng ký</button>
+                    <p class="text-center">
+                        Đã có tài khoản? <a href="#" onclick="showLogin()">Đăng nhập</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Movies Page -->
+        <div id="moviesPage" class="page" style="display: none;">
+            <h2>Danh sách phim</h2>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Tìm kiếm phim..." onkeyup="searchMovies(event)">
+                <select id="genreFilter" onchange="filterMovies()">
+                    <option value="">Tất cả thể loại</option>
+                </select>
+                <select id="yearFilter" onchange="filterMovies()">
+                    <option value="">Tất cả năm</option>
+                </select>
+            </div>
+            <div id="moviesGrid" class="movies-grid"></div>
+            <div id="pagination" class="pagination"></div>
+        </div>
+
+        <!-- Recommendations Page -->
+        <div id="recommendationsPage" class="page" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Gợi ý dành cho bạn</h2>
+                <div id="recommendationsLimitContainer" style="display: flex; align-items: center; gap: 10px;">
+                    <label style="font-size: 0.9rem; color: var(--text-color);">Hiển thị:</label>
+                    <select id="recommendationsLimit" onchange="changeRecommendationsLimit()" style="padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+                        <option value="20">20 phim</option>
+                        <option value="30">30 phim</option>
+                        <option value="50" selected>50 phim</option>
+                        <option value="100">100 phim</option>
+                    </select>
+                </div>
+            </div>
+            <div id="recommendationsGrid" class="movies-grid"></div>
+            <div id="recommendationsPagination" class="pagination"></div>
+        </div>
+
+        <!-- History Page -->
+        <div id="historyPage" class="page" style="display: none;">
+            <h2>Lịch sử xem của bạn</h2>
+            <div id="historyGrid" class="movies-grid"></div>
+            <div id="historyPagination" class="pagination"></div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="dashboardPage" class="page" style="display: none;">
+            <h2> Dashboard Phân tích Dữ liệu</h2>
+            
+            <!-- Summary Cards -->
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <h3>Tổng số phim</h3>
+                    <p id="totalMovies" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Rating trung bình</h3>
+                    <p id="avgRating" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Tổng lượt click</h3>
+                    <p id="totalClicks" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Số thể loại</h3>
+                    <p id="uniqueGenres" class="stat-value">-</p>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-container">
+                <!-- Rating Distribution -->
+                <div class="chart-card">
+                    <h3>Phân bố Rating </h3>
+                    <canvas id="ratingChart"></canvas>
+                </div>
+
+                <!-- Genre Frequency -->
+                <div class="chart-card">
+                    <h3>Tần suất Thể loại phim</h3>
+                    <canvas id="genreChart"></canvas>
+                </div>
+
+                <!-- Top Items -->
+                <div class="chart-card">
+                    <h3> Top 10 Phim theo Rating</h3>
+                    <canvas id="topRatingChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Top 10 Phim theo Lượt Click</h3>
+                    <canvas id="topClicksChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Movie Detail Modal -->
+        <div id="movieModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeMovieModal()">&times;</span>
+                <div id="movieDetail"></div>
+            </div>
+        </div>
+
+        <!-- Watch Page -->
+        <div id="watchPage" class="page" style="display: none;">
+            <div class="watch-container">
+                <div class="watch-main">
+                    <div class="watch-poster-section">
+                        <img id="watchPoster" src="" alt="" class="watch-poster">
+                        <div class="watch-info">
+                            <h1 id="watchTitle"></h1>
+                            <div class="watch-meta">
+                                <span id="watchYear"></span>
+                                <span id="watchRating"></span>
+                                <span id="watchDuration"></span>
+                            </div>
+                            <div id="watchGenres" class="watch-genres"></div>
+                            <div class="watch-details">
+                                <p><strong>Đạo diễn:</strong> <span id="watchDirector"></span></p>
+                                <p><strong>Quốc gia:</strong> <span id="watchCountry"></span></p>
+                                <p><strong>Mô tả:</strong></p>
+                                <p id="watchDescription"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="watch-sidebar">
+                    <h3>Phim đề xuất</h3>
+                    <div id="watchSuggestions" class="watch-suggestions"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
+
