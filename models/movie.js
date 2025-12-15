@@ -87,7 +87,8 @@ const movieSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'movies'
 });
 
 // Indexes for better query performance

@@ -30,7 +30,10 @@ const HistorySchema = new mongoose.Schema(
       default: Date.now
     }
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    collection: 'histories'
+   }
 );
 
 module.exports = mongoose.model('History', HistorySchema);

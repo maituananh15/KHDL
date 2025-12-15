@@ -31,6 +31,9 @@ const userSchema = new mongoose.Schema({
     genres: [String],
     favoriteMovies: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Movie' }]
   }
+}, {
+  collection: 'users',
+  timestamps: true
 });
 
 // Hash password before saving
