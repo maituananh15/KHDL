@@ -1,14 +1,11 @@
 # python / data tools
 scripts/
-models/
 requirements.txt
+BAO_CAO_DU_AN.md
 *.py
-
 # env
 .env
-
 # node
 node_modules/
-
 # heavy assets
 public/images/posters/
