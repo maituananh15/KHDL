@@ -3,7 +3,7 @@ require('dotenv').config();
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/khdl', {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://khdl.nu8iipv.mongodb.net/khdl', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
