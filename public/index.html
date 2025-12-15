@@ -23,7 +23,6 @@
                 <button class="btn btn-red" onclick="showEvaluation()">Đánh giá mô hình</button>
                 <div id="authButtons">
                     <button class="btn btn-primary" onclick="showLogin()">Đăng nhập</button>
-                    <button class="btn btn-secondary" onclick="showRegister()">Đăng ký</button>
                 </div>
                 <div id="userMenu" style="display: none;">
                     <span id="username"></span>
@@ -197,6 +196,17 @@
                 </div>
             </div>
             <div id="evaluationNote" style="margin-top:16px;color:#6b7280;"></div>
+
+            <div class="info-section" style="margin-top:24px;">
+                <h3>Tiêu chí đánh giá</h3>
+                <ul style="margin-left:18px; line-height:1.6;">
+                    <li><strong>RMSE</strong>: Căn bậc hai trung bình bình phương sai khác giữa rating dự đoán và rating thật. Thấp hơn tốt hơn.</li>
+                    <li><strong>MAE</strong>: Trung bình trị tuyệt đối sai khác giữa rating dự đoán và rating thật. Thấp hơn tốt hơn.</li>
+                    <li><strong>Precision@K</strong>: Trong K gợi ý đầu tiên, tỉ lệ phim đúng sở thích. Cao hơn tốt hơn.</li>
+                    <li><strong>Recall@K</strong>: Trong các phim đúng sở thích, bao nhiêu phim xuất hiện trong K gợi ý đầu tiên. Cao hơn tốt hơn.</li>
+                    <li><strong>K</strong>: Số lượng gợi ý được xét (ví dụ K=10).</li>
+                </ul>
+            </div>
         </div>
 
         <!-- Movie Detail Modal -->

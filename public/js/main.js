@@ -954,7 +954,17 @@ function loadEvaluationMetrics() {
             document.getElementById('metricMae').textContent = metrics.mae ?? '-';
             document.getElementById('metricPrecision').textContent = metrics.precisionAtK ?? '-';
             document.getElementById('metricRecall').textContent = metrics.recallAtK ?? '-';
-            document.getElementById('evaluationNote').textContent = metrics.note || '';
+            const noteParts = [];
+            if (metrics.k) {
+                noteParts.push(`K = ${metrics.k}`);
+            }
+            if (metrics.updatedAt) {
+                noteParts.push(`Cập nhật: ${new Date(metrics.updatedAt).toLocaleString()}`);
+            }
+            if (metrics.note) {
+                noteParts.push(metrics.note);
+            }
+            document.getElementById('evaluationNote').textContent = noteParts.join(' • ');
         } else {
             document.getElementById('evaluationNote').textContent = 'Không lấy được dữ liệu đánh giá.';
         }

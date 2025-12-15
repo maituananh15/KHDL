@@ -134,12 +134,24 @@ body {
 
 /* Auth Container */
 .auth-container {
-    max-width: 400px;
-    margin: 50px auto;
+    width: min(420px, 100% - 32px);
+    margin: 48px auto;
     background: white;
-    padding: 40px;
+    padding: 32px 28px;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+}
+
+#loginPage, #registerPage {
+    display: none;
+    padding: 16px 0;
+}
+
+#loginPage .auth-container form,
+#registerPage .auth-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .auth-container h2 {
