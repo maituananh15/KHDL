@@ -1,5 +1,5 @@
-// API Base URL
-const API_BASE = 'http://localhost:3000/api';
+// API Base URL (auto-detect host for deploy)
+const API_BASE = `${window.location.origin}/api`;
 
 // Global state
 let currentUser = null;
