@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const connectDB = require('./config/database');
 require('dotenv').config();
+connectDB();
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -12,7 +13,7 @@ const recommendationRoutes = require('./routes/recommendations');
 const statsRoutes = require('./routes/stats');
 
 // Connect to database
-connectDB();
+
 
 const app = express();
 
