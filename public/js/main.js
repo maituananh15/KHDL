@@ -226,6 +226,12 @@ function showDashboard() {
     loadDashboard();
 }
 
+function showEvaluation() {
+    hideAllPages();
+    document.getElementById('evaluationPage').style.display = 'block';
+    loadEvaluationMetrics();
+}
+
 // Trending Movies
 function loadTrendingMovies() {
     const grid = document.getElementById('trendingMoviesGrid');
@@ -932,6 +938,31 @@ function loadDashboard() {
         if (canvas) {
             canvas.parentElement.innerHTML = '<p>Lỗi khi tải dữ liệu</p>';
         }
+    });
+}
+
+// Evaluation
+function loadEvaluationMetrics() {
+    showLoading();
+    fetch(`${API_BASE}/evaluation`)
+    .then(res => res.json())
+    .then(data => {
+        hideLoading();
+        if (data.success && data.data) {
+            const metrics = data.data;
+            document.getElementById('metricRmse').textContent = metrics.rmse ?? '-';
+            document.getElementById('metricMae').textContent = metrics.mae ?? '-';
+            document.getElementById('metricPrecision').textContent = metrics.precisionAtK ?? '-';
+            document.getElementById('metricRecall').textContent = metrics.recallAtK ?? '-';
+            document.getElementById('evaluationNote').textContent = metrics.note || '';
+        } else {
+            document.getElementById('evaluationNote').textContent = 'Không lấy được dữ liệu đánh giá.';
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        document.getElementById('evaluationNote').textContent = 'Lỗi khi tải dữ liệu đánh giá.';
+        console.error('Error loading evaluation metrics:', err);
     });
 }
 

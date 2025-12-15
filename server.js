@@ -11,6 +11,7 @@ const movieRoutes = require('./routes/movies');
 const historyRoutes = require('./routes/history');
 const recommendationRoutes = require('./routes/recommendations');
 const statsRoutes = require('./routes/stats');
+const evaluationRoutes = require('./routes/evaluation');
 
 // Connect to database
 
@@ -31,6 +32,7 @@ app.use('/api/movies', movieRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/evaluation', evaluationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

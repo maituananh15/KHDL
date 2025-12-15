@@ -20,6 +20,7 @@
                 <button class="btn btn-red" onclick="showRecommendations()">Gợi ý</button>
                 <button class="btn btn-red" onclick="showHistory()">Lịch sử</button>
                 <button class="btn btn-red" onclick="showDashboard()">Dashboard</button>
+                <button class="btn btn-red" onclick="showEvaluation()">Đánh giá mô hình</button>
                 <div id="authButtons">
                     <button class="btn btn-primary" onclick="showLogin()">Đăng nhập</button>
                     <button class="btn btn-secondary" onclick="showRegister()">Đăng ký</button>
@@ -171,6 +172,31 @@
                 </div>
 
             </div>
+        </div>
+
+        <!-- Evaluation Page -->
+        <div id="evaluationPage" class="page" style="display: none;">
+            <h2>Đánh giá mô hình</h2>
+            <p>Hiển thị các chỉ số RMSE, MAE, Precision@K, Recall@K.</p>
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <h3>RMSE</h3>
+                    <p id="metricRmse" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>MAE</h3>
+                    <p id="metricMae" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Precision@K</h3>
+                    <p id="metricPrecision" class="stat-value">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Recall@K</h3>
+                    <p id="metricRecall" class="stat-value">-</p>
+                </div>
+            </div>
+            <div id="evaluationNote" style="margin-top:16px;color:#6b7280;"></div>
         </div>
 
         <!-- Movie Detail Modal -->
