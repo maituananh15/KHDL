@@ -1,7 +1,7 @@
 {
   "name": "movie-recommendation-system",
   "version": "1.0.0",
-  "description": "Hệ thống gợi ý phim với MongoDB và click history tracking",
+  "description": "Hệ thống gợi ý phim",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
