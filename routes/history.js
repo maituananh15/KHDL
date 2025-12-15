@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const History = require('../models/History');
-const Movie = require('../models/Movie');
+const History = require('../models/history');
+const Movie = require('../models/movie');
 const { protect } = require('../middleware/auth');
 
 // @route   POST /api/history/view

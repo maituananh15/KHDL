@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const History = require('../models/History');
-const Movie = require('../models/Movie');
+const History = require('../models/history');
+const Movie = require('../models/movie');
 
 const ObjectId = mongoose.Types.ObjectId;
 

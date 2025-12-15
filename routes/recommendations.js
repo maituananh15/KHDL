@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { protect } = require('../middleware/auth');
-const History = require('../models/History');
-const Movie = require('../models/Movie');
+const History = require('../models/history');
+const Movie = require('../models/movie');
 const Recommendation = require('../ml/recommendation');
 
 // @route   GET /api/recommendations
