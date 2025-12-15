@@ -17,6 +17,13 @@ router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ username, email, password'
+      });
+    }
+
     // Check if user exists
     const existingUser = await User.findOne({ 
       $or: [{ email }, { username }] 
@@ -25,7 +32,7 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists with this email or username'
+        message: 'Email hoặc username đã tồn tại'
       });
     }
 
@@ -48,7 +55,25 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('Register error:', error);
+
+    // Duplicate key
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email hoặc username đã tồn tại'
+      });
+    }
+
+    // Validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error during registration',
