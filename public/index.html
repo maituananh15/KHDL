@@ -114,15 +114,6 @@
         <div id="recommendationsPage" class="page" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0;">Gợi ý dành cho bạn</h2>
-                <div id="recommendationsLimitContainer" style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-size: 0.9rem; color: var(--text-color);">Hiển thị:</label>
-                    <select id="recommendationsLimit" onchange="changeRecommendationsLimit()" style="padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
-                        <option value="20">20 phim</option>
-                        <option value="30">30 phim</option>
-                        <option value="50" selected>50 phim</option>
-                        <option value="100">100 phim</option>
-                    </select>
-                </div>
             </div>
             <div id="recommendationsGrid" class="movies-grid"></div>
             <div id="recommendationsPagination" class="pagination"></div>
@@ -150,8 +141,8 @@
                     <p id="avgRating" class="stat-value">-</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Tổng lượt click</h3>
-                    <p id="totalClicks" class="stat-value">-</p>
+                    <h3>Tổng lượt xem</h3>
+                    <p id="totalViews" class="stat-value">-</p>
                 </div>
                 <div class="stat-card">
                     <h3>Số thể loại</h3>
@@ -179,10 +170,6 @@
                     <canvas id="topRatingChart"></canvas>
                 </div>
 
-                <div class="chart-card">
-                    <h3>Top 10 Phim theo Lượt Click</h3>
-                    <canvas id="topClicksChart"></canvas>
-                </div>
             </div>
         </div>
 

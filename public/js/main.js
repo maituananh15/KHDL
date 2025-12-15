@@ -518,14 +518,14 @@ function closeMovieModal() {
     document.getElementById('movieModal').style.display = 'none';
 }
 
-function recordClick(movieId) {
+function recordView(movieId) {
     const token = localStorage.getItem('token');
     if (!token) {
-        console.log('No token, skipping click recording');
+        console.log('No token, skipping view recording');
         return;
     }
     
-    fetch(`${API_BASE}/history/click`, {
+    fetch(`${API_BASE}/history/view`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -533,7 +533,7 @@ function recordClick(movieId) {
         },
         body: JSON.stringify({
             movieId: movieId,
-            action: 'click'
+            action: 'view'
         })
     })
     .then(res => {
@@ -544,13 +544,13 @@ function recordClick(movieId) {
     })
     .then(data => {
         if (data.success) {
-            console.log('✓ Click recorded:', movieId);
+            console.log('✓ View recorded:', movieId);
         } else {
-            console.error('Failed to record click:', data.message);
+            console.error('Failed to record view:', data.message);
         }
     })
     .catch(err => {
-        console.error('Error recording click:', err);
+        console.error('Error recording view:', err);
     });
 }
 
@@ -567,34 +567,20 @@ function loadRecommendations(page = 1) {
     
     const token = localStorage.getItem('token');
     
-    // Nếu không đăng nhập: hiển thị 30 phim thịnh hành
+    // Nếu không đăng nhập: không hiển thị gợi ý
     if (!token || !currentUser) {
-        fetch(`${API_BASE}/movies/stats/trending?limit=30`)
-        .then(res => res.json())
-        .then(data => {
-            hideLoading();
-            if (data.success && data.data && data.data.length > 0) {
-                displayMoviesInGrid(data.data, 'recommendationsGrid');
-                // Không có pagination cho trending movies
-                document.getElementById('recommendationsPagination').innerHTML = '';
-            } else {
-                grid.innerHTML = '<p>Không tìm thấy phim nào.</p>';
-                document.getElementById('recommendationsPagination').innerHTML = '';
-            }
-        })
-        .catch(err => {
-            hideLoading();
-            grid.innerHTML = '<p>Lỗi khi tải phim thịnh hành. Vui lòng thử lại sau.</p>';
-            showToast('Lỗi khi tải phim thịnh hành', 'error');
-            console.error('Error loading trending movies:', err);
-        });
+        hideLoading();
+        grid.innerHTML = '<p>Đăng nhập để xem gợi ý phim dành cho bạn.</p>';
+        document.getElementById('recommendationsPagination').innerHTML = '';
         return;
     }
     
     // Nếu đã đăng nhập: hiển thị gợi ý dựa trên lịch sử
-    const limit = parseInt(localStorage.getItem('recommendationsLimit')) || 50;
+    // Hiển thị tối đa 30 phim cho mỗi lần tải gợi ý
+    const limit = 30;
     
-    fetch(`${API_BASE}/recommendations?page=${page}&limit=${limit}`, {
+    // Chỉ lấy tối đa 30 phim và không phân trang
+    fetch(`${API_BASE}/recommendations?page=1&limit=${limit}`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -610,16 +596,15 @@ function loadRecommendations(page = 1) {
         console.log('Recommendations data:', data);
         
         if (data.success && data.data && data.data.length > 0) {
-            displayMoviesInGrid(data.data, 'recommendationsGrid');
-            recommendationsPage = data.page || page;
-            recommendationsTotalPages = data.pages || 1;
-            displayRecommendationsPagination();
+            displayMoviesInGrid(data.data.slice(0, 30), 'recommendationsGrid');
+            document.getElementById('recommendationsPagination').innerHTML = '';
         } else if (data.success && data.data && data.data.length === 0) {
             grid.innerHTML = '<p>Chưa có gợi ý. Hãy xem một số phim để chúng tôi hiểu sở thích của bạn!</p>';
             document.getElementById('recommendationsPagination').innerHTML = '';
         } else {
             grid.innerHTML = '<p>Không thể tải gợi ý. Vui lòng thử lại sau.</p>';
             console.error('Invalid response:', data);
+            document.getElementById('recommendationsPagination').innerHTML = '';
         }
     })
     .catch(err => {
@@ -880,7 +865,6 @@ function showToast(message, type = 'success') {
 let ratingChart = null;
 let genreChart = null;
 let topRatingChart = null;
-let topClicksChart = null;
 
 function loadDashboard() {
     showLoading();
@@ -890,10 +874,10 @@ function loadDashboard() {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('totalMovies').textContent = data.data.totalMovies.toLocaleString();
-            document.getElementById('avgRating').textContent = data.data.avgRating.toFixed(2);
-            document.getElementById('totalClicks').textContent = data.data.totalClicks.toLocaleString();
-            document.getElementById('uniqueGenres').textContent = data.data.uniqueGenres;
+            document.getElementById('totalMovies').textContent = (data.data.totalMovies || 0).toLocaleString();
+            document.getElementById('avgRating').textContent = (data.data.avgRating || 0).toFixed(2);
+            document.getElementById('totalViews').textContent = (data.data.totalViews || 0).toLocaleString();
+            document.getElementById('uniqueGenres').textContent = data.data.uniqueGenres || 0;
         }
     })
     .catch(err => console.error('Error loading summary:', err));
@@ -926,14 +910,28 @@ function loadDashboard() {
     .then(res => res.json())
     .then(data => {
         hideLoading();
-        if (data.success) {
+        if (data.success && data.data && data.data.byRating && data.data.byRating.length > 0) {
+            console.log('Top rating data:', data.data.byRating);
             createTopRatingChart(data.data.byRating);
-            createTopClicksChart(data.data.byClicks);
+        } else {
+            console.warn('No top rating data available');
+            // Hide or show message if no data
+            const chartContainer = document.querySelector('#topRatingChart')?.parentElement;
+            if (chartContainer && data.success && (!data.data.byRating || data.data.byRating.length === 0)) {
+                const canvas = document.getElementById('topRatingChart');
+                if (canvas) {
+                    canvas.parentElement.innerHTML = '<p>Chưa có dữ liệu rating</p>';
+                }
+            }
         }
     })
     .catch(err => {
         hideLoading();
         console.error('Error loading top items:', err);
+        const canvas = document.getElementById('topRatingChart');
+        if (canvas) {
+            canvas.parentElement.innerHTML = '<p>Lỗi khi tải dữ liệu</p>';
+        }
     });
 }
 
@@ -1032,17 +1030,47 @@ function createGenreChart(data) {
 
 function createTopRatingChart(data) {
     const ctx = document.getElementById('topRatingChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('topRatingChart canvas not found');
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        console.warn('No data provided for top rating chart');
+        ctx.parentElement.innerHTML = '<p>Chưa có dữ liệu rating</p>';
+        return;
+    }
     
     if (topRatingChart) {
         topRatingChart.destroy();
     }
     
-    const labels = data.map(item => {
-        const title = item.title.length > 30 ? item.title.substring(0, 30) + '...' : item.title;
+    // Filter out items without rating and convert to number
+    const validData = data
+        .filter(item => item && item.title && (item.rating !== null && item.rating !== undefined))
+        .map(item => ({
+            title: item.title,
+            rating: parseFloat(item.rating) || 0
+        }))
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 10);
+    
+    if (validData.length === 0) {
+        ctx.parentElement.innerHTML = '<p>Không có phim nào có rating</p>';
+        return;
+    }
+    
+    const labels = validData.map(item => {
+        const title = item.title.length > 35 ? item.title.substring(0, 35) + '...' : item.title;
         return title;
     });
-    const values = data.map(item => item.rating);
+    const values = validData.map(item => parseFloat(item.rating).toFixed(1));
+    
+    console.log('Creating top rating chart with:', { 
+        count: validData.length, 
+        labels: labels.slice(0, 3) + '...', 
+        values: values.slice(0, 3) 
+    });
     
     topRatingChart = new Chart(ctx, {
         type: 'bar',
@@ -1063,6 +1091,13 @@ function createTopRatingChart(data) {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Rating: ${context.parsed.x}/10`;
+                        }
+                    }
                 }
             },
             scales: {
@@ -1070,7 +1105,10 @@ function createTopRatingChart(data) {
                     beginAtZero: true,
                     max: 10,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        callback: function(value) {
+                            return value + '/10';
+                        }
                     }
                 }
             }
@@ -1078,52 +1116,6 @@ function createTopRatingChart(data) {
     });
 }
 
-function createTopClicksChart(data) {
-    const ctx = document.getElementById('topClicksChart');
-    if (!ctx) return;
-    
-    if (topClicksChart) {
-        topClicksChart.destroy();
-    }
-    
-    const labels = data.map(item => {
-        const title = item.title.length > 30 ? item.title.substring(0, 30) + '...' : item.title;
-        return title;
-    });
-    const values = data.map(item => item.clickCount);
-    
-    topClicksChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Lượt click',
-                data: values,
-                backgroundColor: 'rgba(139, 92, 246, 0.6)',
-                borderColor: 'rgba(139, 92, 246, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
-        }
-    });
-}
 
 // Watch Page
 function showWatchPage(movieId) {
@@ -1143,9 +1135,9 @@ function showWatchPage(movieId) {
             const movie = data.data;
             displayWatchPage(movie);
             
-            // Record click
+            // Record viewing history
             if (currentUser) {
-                recordClick(movieId);
+                recordView(movieId);
             }
             
             // Load phim đề xuất

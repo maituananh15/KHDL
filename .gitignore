@@ -18,4 +18,7 @@ models/
 *.joblib
 .vscode/
 .idea/
-
+scripts/
+evaluation/
+requirements.txt
+BAO_CAO_DU_AN.md

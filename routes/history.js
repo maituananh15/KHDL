@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const ClickHistory = require('../models/ClickHistory');
+const History = require('../models/History');
 const Movie = require('../models/Movie');
 const { protect } = require('../middleware/auth');
 
-// @route   POST /api/history/click
-// @desc    Record a click/view on a movie
+// @route   POST /api/history/view
+// @desc    Record a view/watch on a movie
 // @access  Private
-router.post('/click', protect, async (req, res) => {
+router.post('/view', protect, async (req, res) => {
   try {
-    const { movieId, duration, action, metadata } = req.body;
+    const { movieId, duration, metadata } = req.body;
     
     if (!movieId) {
       return res.status(400).json({
@@ -27,25 +27,20 @@ router.post('/click', protect, async (req, res) => {
       });
     }
     
-    // Create click history
-    const clickHistory = await ClickHistory.create({
+    // Create viewing history (only for actual views, not clicks)
+    const viewHistory = await History.create({
       userId: req.user.id,
       movieId,
       duration: duration || 0,
-      action: action || 'click',
+      action: 'view',
       metadata: metadata || {}
     });
     
-    console.log(`✓ Click recorded: user ${req.user.id}, movie ${movieId}`);
-    
-    // Update movie click count
-    await Movie.findByIdAndUpdate(movieId, {
-      $inc: { clickCount: 1, views: 1 }
-    });
+    console.log(`✓ View recorded: user ${req.user.id}, movie ${movieId}`);
     
     res.status(201).json({
       success: true,
-      data: clickHistory
+      data: viewHistory
     });
   } catch (error) {
     console.error(error);
@@ -58,7 +53,7 @@ router.post('/click', protect, async (req, res) => {
 });
 
 // @route   GET /api/history
-// @desc    Get user's click history
+// @desc    Get user's viewing history
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
@@ -66,13 +61,20 @@ router.get('/', protect, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     
-    const history = await ClickHistory.find({ userId: req.user.id })
+    // Only get viewing history (action = 'view' or 'watch')
+    const history = await History.find({ 
+      userId: req.user.id,
+      action: { $in: ['view', 'watch'] }
+    })
       .populate('movieId', 'title poster rating genres year')
       .sort({ clickedAt: -1 })
       .skip(skip)
       .limit(limit);
     
-    const total = await ClickHistory.countDocuments({ userId: req.user.id });
+    const total = await History.countDocuments({ 
+      userId: req.user.id,
+      action: { $in: ['view', 'watch'] }
+    });
     
     res.json({
       success: true,
@@ -93,7 +95,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // @route   GET /api/history/movies
-// @desc    Get unique movies from user's click history with pagination
+// @desc    Get unique movies from user's viewing history with pagination
 // @access  Private
 router.get('/movies', protect, async (req, res) => {
   try {
@@ -101,13 +103,17 @@ router.get('/movies', protect, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     
-    console.log(`Getting history movies for user ${req.user.id}, page: ${page}`);
+    console.log(`Getting viewing history movies for user ${req.user.id}, page: ${page}`);
     
-    const history = await ClickHistory.find({ userId: req.user.id })
+    // Only get viewing history (action = 'view' or 'watch')
+    const history = await History.find({ 
+      userId: req.user.id,
+      action: { $in: ['view', 'watch'] }
+    })
       .populate('movieId')
       .sort({ clickedAt: -1 });
     
-    console.log(`Found ${history.length} history records`);
+    console.log(`Found ${history.length} viewing history records`);
     
     // Get unique movies
     const movieMap = new Map();
@@ -137,7 +143,7 @@ router.get('/movies', protect, async (req, res) => {
       data: movies
     });
   } catch (error) {
-    console.error('Error getting history movies:', error);
+    console.error('Error getting viewing history movies:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -147,4 +153,5 @@ router.get('/movies', protect, async (req, res) => {
 });
 
 module.exports = router;
+
 

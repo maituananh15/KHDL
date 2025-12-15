@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const ClickHistory = require('../models/ClickHistory');
+const History = require('../models/History');
 const Movie = require('../models/Movie');
 
 const ObjectId = mongoose.Types.ObjectId;
@@ -14,14 +14,17 @@ class Recommendation {
    */
   async getRecommendations(userId, limit = 10) {
     try {
-      // Get user's click history
-      const userHistory = await ClickHistory.find({ userId })
+      // Get user's viewing history (only views, not clicks)
+      const userHistory = await History.find({ 
+        userId,
+        action: { $in: ['view', 'watch'] }
+      })
         .populate('movieId')
         .lean();
 
       if (userHistory.length === 0) {
-        // Return popular movies if no history
-        return await this.getPopularMovies(limit);
+        // Return top 20 movies by rating if no viewing history
+        return await this.getPopularMovies(20);
       }
 
       // Get user's watched movie IDs
@@ -92,7 +95,7 @@ class Recommendation {
       score = score / Math.max(movie.genres.length, 1);
       // Boost by rating and popularity
       score += (movie.rating || 5) * 0.1;
-      score += Math.log(movie.clickCount + 1) * 0.05;
+      score += Math.log((movie.views || 0) + 1) * 0.05;
       return { movie, score };
     });
 
@@ -104,8 +107,11 @@ class Recommendation {
    */
   async collaborativeFiltering(userId, excludeIds, limit) {
     try {
-      // Get user's watched movies
-      const userHistory = await ClickHistory.find({ userId })
+      // Get user's watched movies (viewing history only)
+      const userHistory = await History.find({ 
+        userId,
+        action: { $in: ['view', 'watch'] }
+      })
         .select('movieId')
         .lean();
       
@@ -114,11 +120,12 @@ class Recommendation {
       if (userMovieIds.length === 0) return [];
 
       // Find other users who watched similar movies
-      const similarUsers = await ClickHistory.aggregate([
+      const similarUsers = await History.aggregate([
         {
           $match: {
             userId: { $ne: new ObjectId(userId) },
-            movieId: { $in: userMovieIds.map(id => new ObjectId(id)) }
+            movieId: { $in: userMovieIds.map(id => new ObjectId(id)) },
+            action: { $in: ['view', 'watch'] }
           }
         },
         {
@@ -141,11 +148,12 @@ class Recommendation {
 
       // Get movies watched by similar users
       const similarUserIds = similarUsers.map(u => u._id);
-      const recommendedMovies = await ClickHistory.aggregate([
+      const recommendedMovies = await History.aggregate([
         {
           $match: {
             userId: { $in: similarUserIds },
-            movieId: { $nin: excludeIds.map(id => new ObjectId(id)) }
+            movieId: { $nin: excludeIds.map(id => new ObjectId(id)) },
+            action: { $in: ['view', 'watch'] }
           }
         },
         {
@@ -258,7 +266,7 @@ class Recommendation {
       }
       
       // Popularity boost (logarithmic to avoid over-weighting)
-      finalScore += Math.log(movie.clickCount + 1) * 0.1;
+      finalScore += Math.log((movie.views || 0) + 1) * 0.1;
       
       // Recency boost (newer movies get slight boost)
       if (movie.year) {
@@ -274,12 +282,20 @@ class Recommendation {
   }
 
   /**
-   * Get popular movies as fallback
+   * Get popular movies as fallback (top movies by rating)
    */
   async getPopularMovies(limit) {
-    return await Movie.find()
-      .sort({ clickCount: -1, rating: -1 })
-      .limit(limit);
+    return await Movie.aggregate([
+      {
+        $addFields: {
+          viewsForSort: { $ifNull: ['$views', 0] },
+          ratingForSort: { $ifNull: ['$rating', 0] }
+        }
+      },
+      { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+      { $limit: limit },
+      { $project: { viewsForSort: 0, ratingForSort: 0 } }
+    ]);
   }
 }
 

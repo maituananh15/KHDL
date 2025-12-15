@@ -88,33 +88,71 @@ router.get('/genre-frequency', async (req, res) => {
 });
 
 // @route   GET /api/stats/top-items
-// @desc    Get top items by rating and clicks
+// @desc    Get top items by rating
 // @access  Public
 router.get('/top-items', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     
-    // Top theo rating
-    const topByRating = await Movie.find()
-      .sort({ rating: -1, clickCount: -1 })
-      .limit(limit)
-      .select('title rating clickCount');
+    // Top theo rating - xử lý cả string và number rating
+    const topByRating = await Movie.aggregate([
+      {
+        $match: {
+          rating: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $addFields: {
+          // Convert rating to number nếu là string
+          ratingNum: {
+            $cond: [
+              { $eq: [{ $type: '$rating' }, 'string'] },
+              { 
+                $convert: {
+                  input: '$rating',
+                  to: 'double',
+                  onError: 0,
+                  onNull: 0
+                }
+              },
+              { $ifNull: ['$rating', 0] }
+            ]
+          },
+          viewsForSort: { $ifNull: ['$views', 0] }
+        }
+      },
+      {
+        $match: {
+          ratingNum: { $gt: 0 } // Chỉ lấy phim có rating > 0
+        }
+      },
+      { 
+        $sort: { 
+          ratingNum: -1,  // Sắp xếp theo rating giảm dần
+          viewsForSort: -1 // Nếu rating bằng nhau, sắp xếp theo views
+        } 
+      },
+      { $limit: limit },
+      { 
+        $project: { 
+          title: 1, 
+          rating: '$ratingNum', // Dùng rating đã convert sang number
+          views: 1,
+          _id: 1
+        } 
+      }
+    ]);
     
-    // Top theo clicks
-    const topByClicks = await Movie.find()
-      .sort({ clickCount: -1, rating: -1 })
-      .limit(limit)
-      .select('title rating clickCount');
+    console.log(`✓ Top ${topByRating.length} movies by rating retrieved`);
     
     res.json({
       success: true,
       data: {
-        byRating: topByRating,
-        byClicks: topByClicks
+        byRating: topByRating
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error getting top items:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -134,8 +172,17 @@ router.get('/summary', async (req, res) => {
       { $group: { _id: null, avgRating: { $avg: '$rating' } } }
     ]);
     
-    const totalClicks = await Movie.aggregate([
-      { $group: { _id: null, totalClicks: { $sum: '$clickCount' } } }
+    const totalViews = await Movie.aggregate([
+      { 
+        $group: { 
+          _id: null, 
+          totalViews: { 
+            $sum: { 
+              $ifNull: ['$views', 0] 
+            } 
+          } 
+        } 
+      }
     ]);
     
     const genreCount = await Movie.aggregate([
@@ -149,7 +196,7 @@ router.get('/summary', async (req, res) => {
       data: {
         totalMovies,
         avgRating: avgRating[0]?.avgRating || 0,
-        totalClicks: totalClicks[0]?.totalClicks || 0,
+        totalViews: totalViews[0]?.totalViews || 0,
         uniqueGenres: genreCount[0]?.count || 0
       }
     });

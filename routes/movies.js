@@ -24,16 +24,54 @@ router.get('/', async (req, res) => {
       filter.year = parseInt(req.query.year);
     }
     
-    // Search
+    // Handle text search separately as aggregation doesn't support $text
+    let moviesQuery = Movie.find(filter);
+    
     if (req.query.search) {
       filter.$text = { $search: req.query.search };
+      moviesQuery = Movie.find(filter).sort({ score: { $meta: 'textScore' } });
+    } else {
+      // Use aggregation to handle null views properly when no text search
+      const moviesAgg = await Movie.aggregate([
+        { $match: filter },
+        {
+          $addFields: {
+            viewsForSort: { $ifNull: ['$views', 0] },
+            ratingForSort: { $ifNull: ['$rating', 0] }
+          }
+        },
+        { $sort: { ratingForSort: -1, viewsForSort: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        { $project: { __v: 0, viewsForSort: 0, ratingForSort: 0 } }
+      ]);
+      
+      const total = await Movie.countDocuments(filter);
+      
+      return res.json({
+        success: true,
+        count: moviesAgg.length,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        data: moviesAgg
+      });
     }
     
-    const movies = await Movie.find(filter)
-      .sort({ clickCount: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select('-__v');
+    // For text search, use find() with sort and handle null views in memory
+    const allMovies = await moviesQuery.select('-__v');
+    const movies = allMovies
+      .map(m => m.toObject())
+      .sort((a, b) => {
+        const ratingA = a.rating || 0;
+        const ratingB = b.rating || 0;
+        const viewsA = a.views || 0;
+        const viewsB = b.views || 0;
+        if (ratingB !== ratingA) return ratingB - ratingA;
+        if (viewsB !== viewsA) return viewsB - viewsA;
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      })
+      .slice(skip, skip + limit);
     
     const total = await Movie.countDocuments(filter);
     
@@ -89,9 +127,17 @@ router.get('/:id', async (req, res) => {
 router.get('/stats/popular', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const movies = await Movie.find()
-      .sort({ clickCount: -1, rating: -1 })
-      .limit(limit);
+    const movies = await Movie.aggregate([
+      {
+        $addFields: {
+          viewsForSort: { $ifNull: ['$views', 0] },
+          ratingForSort: { $ifNull: ['$rating', 0] }
+        }
+      },
+      { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+      { $limit: limit },
+      { $project: { viewsForSort: 0, ratingForSort: 0 } }
+    ]);
     
     res.json({
       success: true,
@@ -116,9 +162,11 @@ router.get('/stats/genres', async (req, res) => {
     const genreCount = {};
     
     movies.forEach(movie => {
-      movie.genres.forEach(genre => {
-        genreCount[genre] = (genreCount[genre] || 0) + 1;
-      });
+      if (movie.genres && Array.isArray(movie.genres)) {
+        movie.genres.forEach(genre => {
+          genreCount[genre] = (genreCount[genre] || 0) + 1;
+        });
+      }
     });
     
     const genreStats = Object.entries(genreCount)
@@ -144,10 +192,17 @@ router.get('/stats/genres', async (req, res) => {
 router.get('/stats/trending', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 5;
-    const movies = await Movie.find()
-      .sort({ rating: -1, clickCount: -1 })
-      .limit(limit)
-      .select('-__v');
+    const movies = await Movie.aggregate([
+      {
+        $addFields: {
+          viewsForSort: { $ifNull: ['$views', 0] },
+          ratingForSort: { $ifNull: ['$rating', 0] }
+        }
+      },
+      { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+      { $limit: limit },
+      { $project: { __v: 0, viewsForSort: 0, ratingForSort: 0 } }
+    ]);
     
     res.json({
       success: true,

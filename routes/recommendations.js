@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { protect } = require('../middleware/auth');
-const ClickHistory = require('../models/ClickHistory');
+const History = require('../models/History');
 const Movie = require('../models/Movie');
 const Recommendation = require('../ml/recommendation');
 
@@ -14,30 +15,39 @@ router.get('/', protect, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     
-    // Get user's click history
-    const userHistory = await ClickHistory.find({ userId: req.user.id })
+    // Get user's viewing history (only views, not clicks)
+    const userHistory = await History.find({ 
+      userId: req.user.id,
+      action: { $in: ['view', 'watch'] }
+    })
       .populate('movieId')
       .sort({ clickedAt: -1 });
     
-    console.log(`Getting recommendations for user ${req.user.id}, history count: ${userHistory.length}, page: ${page}`);
+    console.log(`Getting recommendations for user ${req.user.id}, viewing history count: ${userHistory.length}, page: ${page}`);
     
     if (userHistory.length === 0) {
-      // If no history, return popular movies with pagination
-      console.log('No history, returning popular movies');
-      const total = await Movie.countDocuments();
-      const popularMovies = await Movie.find()
-        .sort({ clickCount: -1, rating: -1 })
-        .skip(skip)
-        .limit(limit);
+      // If no viewing history, return top 20 movies by rating
+      console.log('No viewing history, returning top 20 movies');
+      const topMovies = await Movie.aggregate([
+        {
+          $addFields: {
+            viewsForSort: { $ifNull: ['$views', 0] },
+            ratingForSort: { $ifNull: ['$rating', 0] }
+          }
+        },
+        { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+        { $limit: 20 },
+        { $project: { viewsForSort: 0, ratingForSort: 0 } }
+      ]);
       
       return res.json({
         success: true,
         type: 'popular',
-        count: popularMovies.length,
-        total,
-        page,
-        pages: Math.ceil(total / limit),
-        data: popularMovies
+        count: topMovies.length,
+        total: topMovies.length,
+        page: 1,
+        pages: 1,
+        data: topMovies
       });
     }
     
@@ -68,21 +78,27 @@ router.get('/', protect, async (req, res) => {
       });
     } catch (error) {
       console.error('Error in recommendation engine:', error);
-      // Fallback to popular movies with pagination
-      const total = await Movie.countDocuments();
-      const popularMovies = await Movie.find()
-        .sort({ clickCount: -1, rating: -1 })
-        .skip(skip)
-        .limit(limit);
+      // Fallback to top 20 movies by rating
+      const topMovies = await Movie.aggregate([
+        {
+          $addFields: {
+            viewsForSort: { $ifNull: ['$views', 0] },
+            ratingForSort: { $ifNull: ['$rating', 0] }
+          }
+        },
+        { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+        { $limit: 20 },
+        { $project: { viewsForSort: 0, ratingForSort: 0 } }
+      ]);
       
       res.json({
         success: true,
         type: 'popular',
-        count: popularMovies.length,
-        total,
-        page,
-        pages: Math.ceil(total / limit),
-        data: popularMovies
+        count: topMovies.length,
+        total: topMovies.length,
+        page: 1,
+        pages: 1,
+        data: topMovies
       });
     }
   } catch (error) {
@@ -111,16 +127,42 @@ router.get('/similar/:movieId', async (req, res) => {
       });
     }
     
-    // Find similar movies based on genres and tags
-    const similarMovies = await Movie.find({
-      $or: [
-        { genres: { $in: movie.genres } },
-        { tags: { $in: movie.tags } }
-      ],
-      _id: { $ne: movieId }
-    })
-      .sort({ rating: -1, clickCount: -1 })
-      .limit(limit);
+    // Build match conditions only when genres/tags actually exist to avoid
+    // returning the same popular list for every movie
+    const orConditions = [];
+    if (Array.isArray(movie.genres) && movie.genres.length > 0) {
+      orConditions.push({ genres: { $in: movie.genres } });
+    }
+    if (Array.isArray(movie.tags) && movie.tags.length > 0) {
+      orConditions.push({ tags: { $in: movie.tags } });
+    }
+
+    if (orConditions.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        data: []
+      });
+    }
+
+    // Find similar movies based on available genres/tags
+    const similarMovies = await Movie.aggregate([
+      {
+        $match: {
+          $or: orConditions,
+          _id: { $ne: new mongoose.Types.ObjectId(movieId) }
+        }
+      },
+      {
+        $addFields: {
+          viewsForSort: { $ifNull: ['$views', 0] },
+          ratingForSort: { $ifNull: ['$rating', 0] }
+        }
+      },
+      { $sort: { ratingForSort: -1, viewsForSort: -1 } },
+      { $limit: limit },
+      { $project: { viewsForSort: 0, ratingForSort: 0 } }
+    ]);
     
     res.json({
       success: true,
