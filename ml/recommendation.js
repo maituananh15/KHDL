@@ -5,9 +5,6 @@ const Movie = require('../models/movie');
 const ObjectId = mongoose.Types.ObjectId;
 
 class Recommendation {
-  constructor() {
-    this.similarityCache = new Map();
-  }
 
   /**
    * Get personalized recommendations for a user
@@ -66,18 +63,58 @@ class Recommendation {
   }
 
   /**
-   * Content-based recommendation using genre similarity
+   * Gợi ý phim tương tự cho một phim cụ thể (dùng cho gợi ý thời gian thực)
+   * Ưu tiên dựa trên mô tả (description) của phim đó, fallback sang thể loại.
+   */
+  async getSimilarForMovie(baseMovie, limit = 10) {
+    if (!baseMovie || !baseMovie._id) {
+      return [];
+    }
+
+    const excludeIds = [baseMovie._id.toString()];
+
+    // Gợi ý dựa trên mô tả phim
+    const descriptionBasedRecs = await this.descriptionBasedRecommendation(
+      baseMovie,
+      excludeIds,
+      limit * 3
+    );
+
+    let combinedRecs = descriptionBasedRecs;
+
+    // Fallback: dùng thể loại nếu mô tả không đủ thông tin
+    if (!combinedRecs || combinedRecs.length === 0) {
+      const userGenres = this.extractGenresFromMovie(baseMovie);
+      const contentBasedRecs = await this.contentBasedRecommendation(
+        userGenres,
+        excludeIds,
+        limit * 3
+      );
+      combinedRecs = contentBasedRecs;
+    }
+
+    // Score & sort
+    const scoredRecs = await this.scoreRecommendations(combinedRecs, null);
+
+    return scoredRecs
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(rec => rec.movie);
+  }
+
+  /**
+   * Gợi ý content-based dựa trên độ giống nhau về thể loại (genres)
    */
   async contentBasedRecommendation(userGenres, excludeIds, limit) {
     const genreWeights = this.calculateGenreWeights(userGenres);
     
-    // Find movies with similar genres
+    // Tìm các phim có thể loại trùng với sở thích (genreWeights)
     const movies = await Movie.find({
       _id: { $nin: excludeIds },
       genres: { $in: Object.keys(genreWeights) }
     }).limit(limit * 3);
 
-    // Score movies based on genre overlap
+    // Chấm điểm phim dựa trên mức độ trùng lặp thể loại
     const scored = movies.map(movie => {
       let score = 0;
       movie.genres.forEach(genre => {
@@ -85,9 +122,9 @@ class Recommendation {
           score += genreWeights[genre];
         }
       });
-      // Normalize by number of genres
+      // Chuẩn hóa theo số lượng thể loại của phim
       score = score / Math.max(movie.genres.length, 1);
-      // Boost by rating and popularity
+      // Cộng thêm điểm theo rating và độ phổ biến (views)
       score += (movie.rating || 5) * 0.1;
       score += Math.log((movie.views || 0) + 1) * 0.05;
       return { movie, score };
@@ -197,113 +234,7 @@ class Recommendation {
   }
 
   /**
-   * Collaborative filtering - find users with similar tastes
-   */
-  async collaborativeFiltering(userId, excludeIds, limit) {
-    try {
-      // Get user's watched movies (viewing history only)
-      const userHistory = await History.find({ 
-        userId,
-        action: { $in: ['view', 'watch'] }
-      })
-        .select('movieId')
-        .lean();
-      
-      const userMovieIds = userHistory.map(h => h.movieId.toString());
-
-      if (userMovieIds.length === 0) return [];
-
-      // Find other users who watched similar movies
-      const similarUsers = await History.aggregate([
-        {
-          $match: {
-            userId: { $ne: new ObjectId(userId) },
-            movieId: { $in: userMovieIds.map(id => new ObjectId(id)) },
-            action: { $in: ['view', 'watch'] }
-          }
-        },
-        {
-          $group: {
-            _id: '$userId',
-            commonMovies: { $addToSet: '$movieId' },
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $match: { count: { $gte: 1 } }
-        },
-        {
-          $sort: { count: -1 }
-        },
-        {
-          $limit: 50
-        }
-      ]);
-
-      // Get movies watched by similar users
-      const similarUserIds = similarUsers.map(u => u._id);
-      const recommendedMovies = await History.aggregate([
-        {
-          $match: {
-            userId: { $in: similarUserIds },
-            movieId: { $nin: excludeIds.map(id => new ObjectId(id)) },
-            action: { $in: ['view', 'watch'] }
-          }
-        },
-        {
-          $group: {
-            _id: '$movieId',
-            count: { $sum: 1 },
-            avgDuration: { $avg: '$duration' }
-          }
-        },
-        {
-          $sort: { count: -1, avgDuration: -1 }
-        },
-        {
-          $limit: limit
-        }
-      ]);
-
-      // Fetch full movie documents
-      const movieIds = recommendedMovies.map(m => m._id);
-      const movies = await Movie.find({ _id: { $in: movieIds } });
-
-      // Create map for scoring
-      const scoreMap = new Map();
-      recommendedMovies.forEach(rec => {
-        scoreMap.set(rec._id.toString(), rec.count);
-      });
-
-      return movies.map(movie => ({
-        movie,
-        score: scoreMap.get(movie._id.toString()) || 0
-      }));
-    } catch (error) {
-      console.error('Error in collaborative filtering:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Extract genres from user's watch history
-   */
-  extractGenresFromHistory(history) {
-    const genreCount = {};
-    
-    history.forEach(item => {
-      if (item.movieId && item.movieId.genres) {
-        item.movieId.genres.forEach(genre => {
-          genreCount[genre] = (genreCount[genre] || 0) + 1;
-        });
-      }
-    });
-
-    return genreCount;
-  }
-
-  /**
-   * Calculate genre weights based on user preferences
+   * Tính trọng số cho từng thể loại dựa trên tần suất xuất hiện
    */
   calculateGenreWeights(genreCount) {
     const total = Object.values(genreCount).reduce((a, b) => a + b, 0);
@@ -317,52 +248,23 @@ class Recommendation {
   }
 
   /**
-   * Combine recommendations from different strategies
-   */
-  combineRecommendations(contentBased, collaborative, excludeIds) {
-    const movieMap = new Map();
-
-    // Add content-based recommendations
-    contentBased.forEach(({ movie, score }) => {
-      if (!excludeIds.includes(movie._id.toString())) {
-        movieMap.set(movie._id.toString(), { movie, score, type: 'content' });
-      }
-    });
-
-    // Add collaborative recommendations
-    collaborative.forEach(({ movie, score }) => {
-      if (!excludeIds.includes(movie._id.toString())) {
-        const existing = movieMap.get(movie._id.toString());
-        if (existing) {
-          // Boost score if found in both
-          existing.score = existing.score * 1.5 + score;
-          existing.type = 'hybrid';
-        } else {
-          movieMap.set(movie._id.toString(), { movie, score, type: 'collaborative' });
-        }
-      }
-    });
-
-    return Array.from(movieMap.values());
-  }
-
-  /**
-   * Score recommendations with additional factors
+   * Chấm điểm lại danh sách gợi ý với các yếu tố bổ sung
+   * (rating, độ phổ biến, độ mới của phim)
    */
   async scoreRecommendations(recommendations, userId) {
     return recommendations.map(({ movie, score, type }) => {
-      // Boost score based on movie quality
+      // Điểm gốc tính từ mô tả/thể loại, sau đó cộng thêm các yếu tố khác
       let finalScore = score;
       
-      // Rating boost
+      // Cộng thêm điểm theo rating
       if (movie.rating) {
         finalScore += movie.rating * 0.2;
       }
       
-      // Popularity boost (logarithmic to avoid over-weighting)
+      // Cộng thêm điểm theo độ phổ biến (views), dùng log để tránh lệch quá nhiều
       finalScore += Math.log((movie.views || 0) + 1) * 0.1;
       
-      // Recency boost (newer movies get slight boost)
+      // Cộng thêm điểm nhẹ cho phim mới hơn (năm phát hành gần hiện tại)
       if (movie.year) {
         const currentYear = new Date().getFullYear();
         const age = currentYear - movie.year;
@@ -376,7 +278,8 @@ class Recommendation {
   }
 
   /**
-   * Get popular movies as fallback (top movies by rating)
+   * Lấy danh sách phim phổ biến làm phương án dự phòng
+   * (lọc theo rating giảm dần, sau đó tới views)
    */
   async getPopularMovies(limit) {
     return await Movie.aggregate([

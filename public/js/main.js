@@ -1,7 +1,7 @@
-// API Base URL (auto-detect host for deploy)
+// URL gốc của API (tự động lấy theo domain hiện tại, hỗ trợ khi deploy)
 const API_BASE = `${window.location.origin}/api`;
 
-// Global state
+// Trạng thái dùng chung cho toàn bộ ứng dụng (frontend)
 let currentUser = null;
 let currentPage = 1;
 let totalPages = 1;
@@ -10,13 +10,11 @@ let genres = [];
 let years = [];
 let recommendationsLimit = parseInt(localStorage.getItem('recommendationsLimit')) || 50;
 
-// Pagination state for recommendations and history
-let recommendationsPage = 1;
-let recommendationsTotalPages = 1;
+// Trạng thái phân trang cho trang lịch sử
 let historyPage = 1;
 let historyTotalPages = 1;
 
-// Initialize app
+// Khởi tạo ứng dụng khi trang được load xong
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     loadGenres();
@@ -24,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showHome();
 });
 
-// Authentication
+// Xử lý xác thực (đăng nhập / đăng ký / kiểm tra token)
 function checkAuth() {
     const token = localStorage.getItem('token');
     if (token) {
@@ -131,7 +129,7 @@ function logout() {
     showHome();
 }
 
-// Navigation
+// Điều hướng giữa các trang (Home, Phim, Gợi ý, Lịch sử, Dashboard, Đánh giá)
 function hideAllPages() {
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
@@ -232,7 +230,7 @@ function showEvaluation() {
     loadEvaluationMetrics();
 }
 
-// Trending Movies
+// Phim thịnh hành (hiển thị ở trang Home)
 function loadTrendingMovies() {
     const grid = document.getElementById('trendingMoviesGrid');
     if (!grid) return;
@@ -254,7 +252,7 @@ function loadTrendingMovies() {
     });
 }
 
-// Movies
+// Danh sách phim (trang "Phim")
 function loadMovies(page = 1) {
     showLoading();
     const search = document.getElementById('searchInput')?.value || '';
@@ -352,7 +350,7 @@ function loadGenres() {
 }
 
 function loadYears() {
-    // Generate years from 1990 to current year
+    // Sinh danh sách năm từ 1990 đến năm hiện tại
     const currentYear = new Date().getFullYear();
     const select = document.getElementById('yearFilter');
     if (select) {
@@ -383,15 +381,15 @@ function displayPagination() {
     
     if (totalPages <= 1) return;
     
-    // Previous button
+    // Nút về trang trước
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '← Trước';
     prevBtn.disabled = currentPage === 1;
     prevBtn.onclick = () => loadMovies(currentPage - 1);
     pagination.appendChild(prevBtn);
     
-    // Smart pagination: hiển thị đầy đủ với logic thông minh
-    const maxVisiblePages = 7; // Số trang hiển thị tối đa ở một lần
+    // Phân trang "thông minh": chỉ hiển thị một dải xung quanh trang hiện tại
+    const maxVisiblePages = 7; // Số nút trang hiển thị tối đa
     let startPage = 1;
     let endPage = totalPages;
     
@@ -400,15 +398,15 @@ function displayPagination() {
         const halfVisible = Math.floor(maxVisiblePages / 2);
         
         if (currentPage <= halfVisible) {
-            // Ở đầu: hiển thị 1, 2, 3, ..., totalPages
+            // Ở đầu danh sách trang: hiển thị 1 đến maxVisiblePages
             startPage = 1;
             endPage = maxVisiblePages;
         } else if (currentPage >= totalPages - halfVisible) {
-            // Ở cuối: hiển thị 1, ..., totalPages-2, totalPages-1, totalPages
+            // Ở cuối danh sách trang: hiển thị các trang cuối
             startPage = totalPages - maxVisiblePages + 1;
             endPage = totalPages;
         } else {
-            // Ở giữa: hiển thị 1, ..., current-1, current, current+1, ..., totalPages
+            // Ở giữa: hiển thị các trang xung quanh currentPage
             startPage = currentPage - halfVisible;
             endPage = currentPage + halfVisible;
         }
@@ -432,7 +430,7 @@ function displayPagination() {
         }
     }
     
-    // Hiển thị các trang trong phạm vi
+    // Hiển thị các nút trang trong phạm vi tính toán
     for (let i = startPage; i <= endPage; i++) {
         const btn = document.createElement('button');
         btn.textContent = i;
@@ -443,7 +441,7 @@ function displayPagination() {
     
     // Hiển thị trang cuối cùng
     if (endPage < totalPages) {
-        // Hiển thị dấu "..." nếu cần
+        // Hiển thị dấu "..." nếu còn khoảng trống giữa endPage và trang cuối
         if (endPage < totalPages - 1) {
             const dots = document.createElement('span');
             dots.textContent = '...';
@@ -459,7 +457,7 @@ function displayPagination() {
         pagination.appendChild(btnLast);
     }
     
-    // Next button
+    // Nút sang trang tiếp theo
     const nextBtn = document.createElement('button');
     nextBtn.textContent = 'Sau →';
     nextBtn.disabled = currentPage === totalPages;
@@ -467,7 +465,7 @@ function displayPagination() {
     pagination.appendChild(nextBtn);
 }
 
-// Movie Detail
+// Chi tiết phim (hiển thị trong modal)
 function showMovieDetail(movieId) {
     showLoading();
     fetch(`${API_BASE}/movies/${movieId}`)
@@ -560,7 +558,7 @@ function recordView(movieId) {
     });
 }
 
-// Recommendations
+// Gợi ý phim (trang "Gợi ý")
 function loadRecommendations(page = 1) {
     const grid = document.getElementById('recommendationsGrid');
     if (!grid) {
@@ -582,10 +580,10 @@ function loadRecommendations(page = 1) {
     }
     
     // Nếu đã đăng nhập: hiển thị gợi ý dựa trên bộ phim gần đây bạn đã xem
-    // (dựa trên mô tả/nội dung phim đó). Hiển thị tối đa 30 phim cho mỗi lần tải gợi ý.
+    // (content-based theo mô tả/nội dung phim đó). Hiển thị tối đa 30 phim cho mỗi lần tải.
     const limit = 30;
     
-    // Chỉ lấy tối đa 30 phim và không phân trang
+    // Chỉ lấy tối đa 30 phim và không phân trang ở frontend (API đã xử lý)
     fetch(`${API_BASE}/recommendations?page=1&limit=${limit}`, {
         headers: {
             'Authorization': `Bearer ${token}`
@@ -621,93 +619,7 @@ function loadRecommendations(page = 1) {
     });
 }
 
-function displayRecommendationsPagination() {
-    const pagination = document.getElementById('recommendationsPagination');
-    if (!pagination) return;
-    
-    pagination.innerHTML = '';
-    
-    if (recommendationsTotalPages <= 1) return;
-    
-    // Previous button
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '← Trước';
-    prevBtn.disabled = recommendationsPage === 1;
-    prevBtn.onclick = () => loadRecommendations(recommendationsPage - 1);
-    pagination.appendChild(prevBtn);
-    
-    // Smart pagination
-    const maxVisiblePages = 7;
-    let startPage = 1;
-    let endPage = recommendationsTotalPages;
-    
-    if (recommendationsTotalPages > maxVisiblePages) {
-        const halfVisible = Math.floor(maxVisiblePages / 2);
-        
-        if (recommendationsPage <= halfVisible) {
-            startPage = 1;
-            endPage = maxVisiblePages;
-        } else if (recommendationsPage >= recommendationsTotalPages - halfVisible) {
-            startPage = recommendationsTotalPages - maxVisiblePages + 1;
-            endPage = recommendationsTotalPages;
-        } else {
-            startPage = recommendationsPage - halfVisible;
-            endPage = recommendationsPage + halfVisible;
-        }
-    }
-    
-    // First page
-    if (startPage > 1) {
-        const btn1 = document.createElement('button');
-        btn1.textContent = '1';
-        btn1.className = 1 === recommendationsPage ? 'active' : '';
-        btn1.onclick = () => loadRecommendations(1);
-        pagination.appendChild(btn1);
-        
-        if (startPage > 2) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.style.padding = '10px';
-            dots.style.color = '#6b7280';
-            pagination.appendChild(dots);
-        }
-    }
-    
-    // Pages in range
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = document.createElement('button');
-        btn.textContent = i;
-        btn.className = i === recommendationsPage ? 'active' : '';
-        btn.onclick = () => loadRecommendations(i);
-        pagination.appendChild(btn);
-    }
-    
-    // Last page
-    if (endPage < recommendationsTotalPages) {
-        if (endPage < recommendationsTotalPages - 1) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.style.padding = '10px';
-            dots.style.color = '#6b7280';
-            pagination.appendChild(dots);
-        }
-        
-        const btnLast = document.createElement('button');
-        btnLast.textContent = recommendationsTotalPages;
-        btnLast.className = recommendationsTotalPages === recommendationsPage ? 'active' : '';
-        btnLast.onclick = () => loadRecommendations(recommendationsTotalPages);
-        pagination.appendChild(btnLast);
-    }
-    
-    // Next button
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = 'Sau →';
-    nextBtn.disabled = recommendationsPage === recommendationsTotalPages;
-    nextBtn.onclick = () => loadRecommendations(recommendationsPage + 1);
-    pagination.appendChild(nextBtn);
-}
-
-// History
+// Lịch sử xem phim
 function loadHistory(page = 1) {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -724,7 +636,7 @@ function loadHistory(page = 1) {
     grid.innerHTML = '<p>Đang tải lịch sử...</p>';
     showLoading();
     
-    const limit = 20; // 20 phim mỗi trang
+    const limit = 20; // mỗi trang hiển thị 20 phim trong lịch sử
     
     fetch(`${API_BASE}/history/movies?page=${page}&limit=${limit}`, {
         headers: {
@@ -770,14 +682,14 @@ function displayHistoryPagination() {
     
     if (historyTotalPages <= 1) return;
     
-    // Previous button
+    // Nút về trang trước (lịch sử)
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '← Trước';
     prevBtn.disabled = historyPage === 1;
     prevBtn.onclick = () => loadHistory(historyPage - 1);
     pagination.appendChild(prevBtn);
     
-    // Smart pagination
+    // Phân trang "thông minh" cho lịch sử
     const maxVisiblePages = 7;
     let startPage = 1;
     let endPage = historyTotalPages;
@@ -797,7 +709,7 @@ function displayHistoryPagination() {
         }
     }
     
-    // First page
+    // Nút về trang đầu tiên
     if (startPage > 1) {
         const btn1 = document.createElement('button');
         btn1.textContent = '1';
@@ -814,7 +726,7 @@ function displayHistoryPagination() {
         }
     }
     
-    // Pages in range
+    // Các nút trang trong phạm vi hiển thị
     for (let i = startPage; i <= endPage; i++) {
         const btn = document.createElement('button');
         btn.textContent = i;
@@ -823,7 +735,7 @@ function displayHistoryPagination() {
         pagination.appendChild(btn);
     }
     
-    // Last page
+    // Nút tới trang cuối cùng
     if (endPage < historyTotalPages) {
         if (endPage < historyTotalPages - 1) {
             const dots = document.createElement('span');
@@ -840,7 +752,7 @@ function displayHistoryPagination() {
         pagination.appendChild(btnLast);
     }
     
-    // Next button
+    // Nút sang trang tiếp theo (lịch sử)
     const nextBtn = document.createElement('button');
     nextBtn.textContent = 'Sau →';
     nextBtn.disabled = historyPage === historyTotalPages;
@@ -848,7 +760,7 @@ function displayHistoryPagination() {
     pagination.appendChild(nextBtn);
 }
 
-// Utilities
+// Các hàm tiện ích chung (loading, thông báo toast)
 function showLoading() {
     document.getElementById('loading').style.display = 'flex';
 }
@@ -867,7 +779,7 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// Dashboard
+// Dashboard thống kê (biểu đồ, số liệu tổng quan)
 let ratingChart = null;
 let genreChart = null;
 let topRatingChart = null;
@@ -875,7 +787,7 @@ let topRatingChart = null;
 function loadDashboard() {
     showLoading();
     
-    // Load summary stats
+    // Gọi API lấy thống kê tổng quan (tổng số phim, rating trung bình, tổng lượt xem, số thể loại)
     fetch(`${API_BASE}/stats/summary`)
     .then(res => res.json())
     .then(data => {
@@ -888,7 +800,7 @@ function loadDashboard() {
     })
     .catch(err => console.error('Error loading summary:', err));
     
-    // Load rating distribution
+    // Gọi API lấy phân bố rating để vẽ histogram
     fetch(`${API_BASE}/stats/rating-distribution`)
     .then(res => res.json())
     .then(data => {
@@ -901,7 +813,7 @@ function loadDashboard() {
         hideLoading();
     });
     
-    // Load genre frequency
+    // Gọi API lấy tần suất xuất hiện của các thể loại
     fetch(`${API_BASE}/stats/genre-frequency`)
     .then(res => res.json())
     .then(data => {
@@ -911,7 +823,7 @@ function loadDashboard() {
     })
     .catch(err => console.error('Error loading genre frequency:', err));
     
-    // Load top items
+    // Gọi API lấy danh sách phim có rating cao nhất để vẽ biểu đồ top rating
     fetch(`${API_BASE}/stats/top-items?limit=10`)
     .then(res => res.json())
     .then(data => {
@@ -920,8 +832,8 @@ function loadDashboard() {
             console.log('Top rating data:', data.data.byRating);
             createTopRatingChart(data.data.byRating);
         } else {
-            console.warn('No top rating data available');
-            // Hide or show message if no data
+            console.warn('Không có dữ liệu để vẽ biểu đồ top rating');
+            // Nếu không có dữ liệu thì hiển thị thông báo thay cho biểu đồ
             const chartContainer = document.querySelector('#topRatingChart')?.parentElement;
             if (chartContainer && data.success && (!data.data.byRating || data.data.byRating.length === 0)) {
                 const canvas = document.getElementById('topRatingChart');
@@ -933,7 +845,7 @@ function loadDashboard() {
     })
     .catch(err => {
         hideLoading();
-        console.error('Error loading top items:', err);
+        console.error('Lỗi khi tải dữ liệu top rating:', err);
         const canvas = document.getElementById('topRatingChart');
         if (canvas) {
             canvas.parentElement.innerHTML = '<p>Lỗi khi tải dữ liệu</p>';
@@ -1168,7 +1080,7 @@ function showWatchPage(movieId) {
     
     showLoading();
     
-    // Load thông tin phim
+    // Gọi API lấy thông tin chi tiết của phim đang xem
     fetch(`${API_BASE}/movies/${movieId}`)
     .then(res => res.json())
     .then(data => {
@@ -1176,12 +1088,12 @@ function showWatchPage(movieId) {
             const movie = data.data;
             displayWatchPage(movie);
             
-            // Record viewing history
+            // Ghi lại lịch sử xem phim cho user
             if (currentUser) {
                 recordView(movieId);
             }
             
-            // Load phim đề xuất
+            // Gọi API lấy danh sách phim đề xuất (tương tự phim này)
             loadWatchSuggestions(movieId);
         } else {
             hideLoading();

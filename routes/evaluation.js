@@ -1,20 +1,39 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
 const router = express.Router();
 
-// Simple placeholder evaluation endpoint.
-// In production, plug in real evaluation results from offline jobs.
+// @route   GET /api/evaluation
+// @desc    Lấy kết quả đánh giá mô hình recommendation
+// @access  Public
 router.get('/', async (_req, res) => {
   try {
-    // Các giá trị mẫu — thay bằng kết quả thực tế sau khi bạn chạy đánh giá offline
-    const metrics = {
-      rmse: 0.89,
-      mae: 0.71,
-      precisionAtK: 0.42,
-      recallAtK: 0.31,
-      k: 10,
-      updatedAt: new Date().toISOString(),
-      note: 'Các số liệu mẫu. Cập nhật bằng kết quả đánh giá thực tế khi có.'
-    };
+    // Đường dẫn tới file JSON chứa kết quả đánh giá do script Python ghi ra
+    const resultPath = path.join(process.cwd(), 'evaluation_result.json');
+
+    let metrics;
+
+    if (fs.existsSync(resultPath)) {
+      // Đọc kết quả đánh giá thực tế từ file JSON
+      const raw = fs.readFileSync(resultPath, 'utf8');
+      const parsed = JSON.parse(raw || '{}');
+
+      // Chuẩn hoá lại key cho frontend
+      metrics = {
+        rmse: parsed.rmse ?? null,
+        mae: parsed.mae ?? null,
+        precisionAtK: parsed.precisionAtK ?? parsed.precision_at_k ?? null,
+        recallAtK: parsed.recallAtK ?? parsed.recall_at_k ?? null,
+        k: parsed.k ?? 10,
+        updatedAt: parsed.updatedAt || parsed.updated_at || new Date().toISOString(),
+        note:
+          parsed.note 
+      };
+    } else {
+      // Nếu chưa có file kết quả, trả về giá trị mẫu để UI vẫn hiển thị được
+      metrics = null;
+    }
 
     res.json({
       success: true,
@@ -24,11 +43,12 @@ router.get('/', async (_req, res) => {
     console.error('Error getting evaluation metrics:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error fetching evaluation metrics',
+      message: 'Lỗi server khi lấy kết quả đánh giá mô hình',
       error: error.message
     });
   }
 });
 
 module.exports = router;
+
 
