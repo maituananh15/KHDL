@@ -581,8 +581,8 @@ function loadRecommendations(page = 1) {
         return;
     }
     
-    // Nếu đã đăng nhập: hiển thị gợi ý dựa trên lịch sử
-    // Hiển thị tối đa 30 phim cho mỗi lần tải gợi ý
+    // Nếu đã đăng nhập: hiển thị gợi ý dựa trên bộ phim gần đây bạn đã xem
+    // (dựa trên mô tả/nội dung phim đó). Hiển thị tối đa 30 phim cho mỗi lần tải gợi ý.
     const limit = 30;
     
     // Chỉ lấy tối đa 30 phim và không phân trang

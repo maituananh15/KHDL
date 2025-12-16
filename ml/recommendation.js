@@ -11,56 +11,50 @@ class Recommendation {
 
   /**
    * Get personalized recommendations for a user
+   * Bây giờ ưu tiên: gợi ý phim dựa trên bộ phim người dùng vừa xem
+   * (dựa trên mô tả/nội dung của phim đó) thay vì phân tích toàn bộ lịch sử.
    */
   async getRecommendations(userId, limit = 10) {
     try {
-      // Get user's viewing history (only views, not clicks)
-      const userHistory = await History.find({ 
+      // Lấy bản ghi xem gần nhất của user (view/watch)
+      const lastHistory = await History.findOne({ 
         userId,
         action: { $in: ['view', 'watch'] }
       })
-        .populate('movieId')
+        .populate('movieId') // lấy luôn thông tin phim
+        .sort({ clickedAt: -1 }) // mới nhất trước
         .lean();
 
-      if (userHistory.length === 0) {
-        // Return top 20 movies by rating if no viewing history
-        return await this.getPopularMovies(20);
+      // Nếu chưa từng xem phim nào -> trả về danh sách phổ biến
+      if (!lastHistory || !lastHistory.movieId) {
+        return await this.getPopularMovies(limit);
       }
 
-      // Get user's watched movie IDs
-      const watchedMovieIds = userHistory.map(h => {
-        const movieId = h.movieId;
-        return movieId._id ? movieId._id.toString() : movieId.toString();
-      });
-      
-      // Get genres from watched movies
-      const userGenres = this.extractGenresFromHistory(userHistory);
-      
-      // Strategy 1: Content-based filtering (genre similarity)
-      const contentBasedRecs = await this.contentBasedRecommendation(
-        userGenres,
-        watchedMovieIds,
-        limit * 2
+      const baseMovie = lastHistory.movieId;
+      const excludeIds = [baseMovie._id.toString()];
+
+      // Gợi ý dựa trên mô tả của phim vừa xem (content-based theo description)
+      const descriptionBasedRecs = await this.descriptionBasedRecommendation(
+        baseMovie,
+        excludeIds,
+        limit * 3
       );
 
-      // Strategy 2: Collaborative filtering (users with similar tastes)
-      const collaborativeRecs = await this.collaborativeFiltering(
-        userId,
-        watchedMovieIds,
-        limit * 2
-      );
+      // Nếu vì lý do nào đó không tính được theo mô tả, fallback về gợi ý theo thể loại
+      let combinedRecs = descriptionBasedRecs;
+      if (!combinedRecs || combinedRecs.length === 0) {
+        const userGenres = this.extractGenresFromMovie(baseMovie);
+        const contentBasedRecs = await this.contentBasedRecommendation(
+          userGenres,
+          excludeIds,
+          limit * 3
+        );
+        combinedRecs = contentBasedRecs;
+      }
 
-      // Combine and deduplicate recommendations
-      const combinedRecs = this.combineRecommendations(
-        contentBasedRecs,
-        collaborativeRecs,
-        watchedMovieIds
-      );
-
-      // Score and rank recommendations
+      // Score & sort (đã có score sơ bộ từ description/genre, cộng thêm rating/views...)
       const scoredRecs = await this.scoreRecommendations(combinedRecs, userId);
 
-      // Return top N recommendations
       return scoredRecs
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
@@ -100,6 +94,106 @@ class Recommendation {
     });
 
     return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /**
+   * Content-based theo mô tả phim (description)
+   * Ý tưởng đơn giản: so khớp token giữa mô tả phim đang xem và các phim khác (Jaccard)
+   */
+  async descriptionBasedRecommendation(baseMovie, excludeIds, limit) {
+    if (!baseMovie || !baseMovie.description) {
+      return [];
+    }
+
+    // Tokenize mô tả phim gốc
+    const baseTokens = this.tokenizeText(baseMovie.description);
+    if (baseTokens.size === 0) {
+      return [];
+    }
+
+    // Lấy danh sách phim khác để so sánh
+    const candidates = await Movie.find({
+      _id: { $nin: excludeIds }
+    }).select('title description genres rating views year poster').lean();
+
+    const scored = [];
+
+    for (const movie of candidates) {
+      if (!movie.description) continue;
+
+      const movieTokens = this.tokenizeText(movie.description);
+      if (movieTokens.size === 0) continue;
+
+      // Jaccard similarity giữa 2 tập token
+      const similarity = this.jaccardSimilarity(baseTokens, movieTokens);
+      if (similarity <= 0) continue;
+
+      // Base score = độ giống mô tả
+      let score = similarity * 10; // scale lên một chút để dễ kết hợp
+
+      // Nhẹ nhàng thưởng thêm nếu trùng thể loại
+      if (Array.isArray(baseMovie.genres) && Array.isArray(movie.genres)) {
+        const overlap = movie.genres.filter(g => baseMovie.genres.includes(g)).length;
+        if (overlap > 0) {
+          score += overlap * 0.5;
+        }
+      }
+
+      scored.push({ movie, score });
+    }
+
+    // Trả về top theo score mô tả
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
+  /**
+   * Tokenize text: chuyển về lower-case, bỏ ký tự đặc biệt, tách từ, loại bỏ từ quá ngắn
+   */
+  tokenizeText(text) {
+    if (!text || typeof text !== 'string') return new Set();
+    const cleaned = text
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '') // bỏ dấu tiếng Việt
+      .replace(/[^a-z0-9\s]/g, ' ');
+
+    const tokens = cleaned
+      .split(/\s+/)
+      .filter(t => t.length >= 3); // bỏ từ quá ngắn / ít thông tin
+
+    return new Set(tokens);
+  }
+
+  /**
+   * Jaccard similarity giữa 2 tập token
+   */
+  jaccardSimilarity(setA, setB) {
+    if (!setA || !setB || setA.size === 0 || setB.size === 0) return 0;
+
+    let intersection = 0;
+    for (const token of setA) {
+      if (setB.has(token)) intersection++;
+    }
+
+    const union = setA.size + setB.size - intersection;
+    if (union === 0) return 0;
+
+    return intersection / union;
+  }
+
+  /**
+   * Lấy thống kê thể loại từ một phim (dùng cho fallback content-based)
+   */
+  extractGenresFromMovie(movie) {
+    const genreCount = {};
+    if (movie && Array.isArray(movie.genres)) {
+      movie.genres.forEach(g => {
+        genreCount[g] = (genreCount[g] || 0) + 1;
+      });
+    }
+    return genreCount;
   }
 
   /**

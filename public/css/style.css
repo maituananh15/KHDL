@@ -545,7 +545,9 @@ body {
     background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
     color: white;
 }
-
+.navbar .change-color:hover  H1{
+    color: rgb(198, 17, 159);
+}
 .stat-card h3 {
     font-size: 0.95rem;
     font-weight: 600;
