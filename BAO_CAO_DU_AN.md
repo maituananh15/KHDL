@@ -15,8 +15,8 @@ Xây dựng hệ thống gợi ý phim cá nhân hóa đáp ứng các tiêu ch�
 ## II. KIẾN TRÚC HỆ THỐNG
 ```
 ├── Backend (Express)
-│   ├── Models: user, movie, history
-│   ├── Routes: auth, movies, history, recommendations, stats, evaluation
+│   ├── Models: user, movie, history, userRating
+│   ├── Routes: auth, movies, history, recommendations, ratings, stats, evaluation
 │   └── Middleware: auth (JWT)
 ├── Frontend (public/)
 │   ├── Trang: home, movies, recommendations, history, dashboard, evaluation
@@ -53,10 +53,9 @@ API `routes/stats.js`, hiển thị ở Dashboard:
 
 ## VI. HỆ THỐNG GỢI Ý
 ### 6.1. Phương pháp
-- **Content-based:** genres/tags, TF‑IDF/overlap, ưu tiên phim chưa xem, có rating/views cao.
-- **Collaborative:** người dùng tương tự dựa trên lịch sử xem (`history`), gợi ý phim phổ biến trong nhóm tương tự.
-- **Hybrid:** gộp hai nguồn, cộng điểm, ưu tiên xuất hiện ở cả hai; thêm yếu tố rating, popularity, recency.
-- **Fallback:** top phim (rating/views) khi chưa có lịch sử.
+- **Content-based theo mô tả + thể loại:** sử dụng token hóa description (Jaccard similarity) và genres, cộng thêm điểm theo rating, views, độ mới năm phát hành.
+- **Gợi ý theo phim vừa xem:** lấy bộ phim user vừa xem gần nhất trong `history`, tìm phim tương tự về nội dung/thể loại, sắp xếp theo score.
+- **Fallback:** top phim phổ biến (rating/views) khi user chưa có lịch sử xem.
 
 ### 6.2. API
 - `/api/recommendations` (cá nhân hóa, yêu cầu đăng nhập).
@@ -69,14 +68,36 @@ API `routes/stats.js`, hiển thị ở Dashboard:
 - **Precision@K:** trong K gợi ý đầu, tỷ lệ phim đúng sở thích; càng cao càng tốt.
 - **Recall@K:** trong các phim đúng sở thích, bao nhiêu xuất hiện trong K gợi ý; càng cao càng tốt.
 
-### 7.2. Quy trình đánh giá (đề xuất)
-- Chia train/test (hoặc leave-one-out) trên lịch sử xem/rating.
-- Dự đoán rating (cho RMSE/MAE) và sinh top‑K (cho Precision/Recall).
-- Tính trung bình trên tập người dùng test; K mặc định 10.
+### 7.2. Quy trình đánh giá (thực tế đã triển khai)
+- **Nguồn dữ liệu đánh giá:** bảng `user_ratings` (rating người dùng nhập từ giao diện web, 0.5–5 sao/phim).
+- **Bước 1 – Sinh dữ liệu đánh giá:** script `scripts/exportEvalDataFromUserRatings.js`:
+  - Gom các user có ít nhất 1 rating.
+  - Với mỗi user, gọi `Recommendation.getRecommendations(userId, K)` để lấy danh sách gợi ý top‑K.
+  - Xây `all_recommendations[user]` (phim được gợi ý) và `all_relevant_items[user]` (các phim user đã rating ≥ 3 sao).
+  - Lưu thêm `user_item_ratings[user][movie] = rating` vào file `ml/eval_data_user_ratings.json`.
+- **Bước 2 – Tính chỉ số offline (Python):** file `ml/run_offline_evaluation.py`:
+  - Đọc `eval_data_user_ratings.json`.
+  - **Precision@K, Recall@K:** tính trung bình trên toàn bộ user giữa danh sách gợi ý và danh sách phim relevant (rating ≥ 3).
+  - **RMSE, MAE (xấp xỉ):** xây:
+    - \(y_{\text{true}}\): rating thật của user cho từng (user, movie).
+    - \(y_{\text{pred}}\): điểm dự đoán đơn giản: 5 nếu phim nằm trong danh sách gợi ý top‑K của user, 2 nếu không.
+    - Tính RMSE, MAE giữa hai vector này để đo “mức độ phù hợp” của gợi ý so với rating thật.
+- **Bước 3 – Hiển thị:** script ghi kết quả vào `evaluation_result.json`; backend đọc qua API `/api/evaluation` và frontend hiển thị ở trang “Đánh giá mô hình”.
 
-### 7.3. Kết quả (cần cập nhật số liệu thực tế)
-- Ví dụ placeholder (đang trả qua `/api/evaluation`): RMSE 0.89, MAE 0.71, Precision@10 0.42, Recall@10 0.31, cập nhật lúc …
-- Khi có số thật từ script đánh giá (Python), cập nhật vào API `routes/evaluation.js` và ghi lại tại đây.
+### 7.3. Kết quả thực tế (offline)
+- **Cấu hình đánh giá hiện tại:**
+  - \(K = 10\).
+  - Ngưỡng phim relevant: rating người dùng **≥ 3**.
+  - Dữ liệu từ bảng `user_ratings` ngày 17/12/2025.
+- **Kết quả đo được (trích từ `evaluation_result.json`):**
+  - **RMSE ≈ 2.36**
+  - **MAE ≈ 2.13**
+  - **Precision@10 ≈ 0.05**
+  - **Recall@10 ≈ 0.058**
+  - Thời điểm tính: `2025-12-17T14:32:40Z`
+- **Nhận xét nhanh:**
+  - Precision/Recall còn **thấp** do hệ thống chủ yếu dựa trên content-based đơn giản và số lượng rating của người dùng còn ít.
+  - RMSE/MAE ở mức khá cao vì cách xấp xỉ \(y_{\text{pred}}\) rất thô (chỉ dựa vào việc phim có được gợi ý hay không). Khi có model dự đoán rating số riêng, có thể cải thiện ý nghĩa của hai chỉ số này.
 
 ## VIII. GIAO DIỆN WEB
 - Trang: Home, Danh sách phim (tìm kiếm/lọc), Gợi ý, Lịch sử, Dashboard thống kê, Đánh giá mô hình.
@@ -88,8 +109,8 @@ API `routes/stats.js`, hiển thị ở Dashboard:
 - Dữ liệu: mục tiêu ≥ 2.000 phim, ≥ 5 thuộc tính (đáp ứng về schema; cần xác nhận số thực tế).
 - Làm sạch/chuẩn bị: đã thiết kế quy trình đáp ứng ≥3 tác vụ (missing, chuẩn hóa, duplicate, outlier, vector hóa); cần log thực thi.
 - Trực quan hóa: ≥3 biểu đồ (rating histogram, genre frequency bar, top items; có thể bổ sung heatmap).
-- Mô hình gợi ý: Content-based, Collaborative, Hybrid; API hoạt động.
-- Đánh giá: có endpoint và trang hiển thị; cần cập nhật số liệu đo thực tế.
+- Mô hình gợi ý: Content-based theo mô tả + thể loại, gợi ý theo phim vừa xem, fallback phim phổ biến; API hoạt động.
+- Đánh giá: đã có pipeline offline dùng bảng `user_ratings`, script Python, API `/api/evaluation` và trang hiển thị; đã có số liệu RMSE/MAE/Precision@K/Recall@K thực tế.
 
 ## X. HƯỚNG PHÁT TRIỂN
 - Bổ sung kết quả đánh giá thực chạy offline; tự động cập nhật vào `/api/evaluation`.
@@ -98,7 +119,7 @@ API `routes/stats.js`, hiển thị ở Dashboard:
 - Mở rộng UI/UX, đa ngôn ngữ, mobile app.
 
 ## XI. KẾT LUẬN
-Hệ thống đã hoàn thiện kiến trúc, API, giao diện và mô hình gợi ý lai. Cần bổ sung minh chứng dữ liệu (số lượng thực), log làm sạch, và số liệu đánh giá thật để đáp ứng đầy đủ yêu cầu học phần. Nền tảng sẵn sàng mở rộng với mô hình nâng cao và thêm tính năng người dùng.
+Hệ thống đã hoàn thiện kiến trúc, API, giao diện và mô hình gợi ý content-based, cùng pipeline đánh giá offline dựa trên rating thật của người dùng (bảng `user_ratings`). Cần bổ sung minh chứng dữ liệu (số lượng thực), log làm sạch chi tiết, và có thể cải thiện thêm mô hình (collaborative/hybrid, dự đoán rating số) để nâng cao chất lượng gợi ý và ý nghĩa các chỉ số RMSE/MAE. Nền tảng sẵn sàng mở rộng với mô hình nâng cao và thêm tính năng người dùng.
 
 ---
 **Tác giả:** …  
