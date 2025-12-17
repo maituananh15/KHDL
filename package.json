@@ -16,8 +16,6 @@
     "test-poster": "node scripts/testDownloadPoster.js",
     "process-data": "python scripts/processData.py",
     "train-model": "python scripts/trainModel.py",
-    "export-user-ratings": "node scripts/exportUserRatings.js",
-    "export-eval-history": "node scripts/exportEvalDataFromHistory.js",
     "export-eval-user-ratings": "node scripts/exportEvalDataFromUserRatings.js"
   },
   "keywords": ["recommendation", "movies", "mongodb"],

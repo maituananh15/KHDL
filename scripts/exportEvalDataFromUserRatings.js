@@ -12,7 +12,7 @@ const Recommendation = require('../ml/recommendation');
   try {
     await connectDB();
 
-    const MIN_RATINGS = 3;      // chỉ lấy user có ít nhất 3 rating
+    const MIN_RATINGS = 1;      // chỉ lấy user có ít nhất 1 rating
     const LIMIT_USERS = 200;    // số user tối đa dùng để đánh giá
     const K = 10;               // số lượng gợi ý / user
     const RATING_THRESHOLD = 3; // phim được coi là "relevant" nếu user rating >= 3
@@ -39,6 +39,7 @@ const Recommendation = require('../ml/recommendation');
 
     const allRecommendations = {};
     const allRelevantItems = {};
+    const userItemRatings = {};
 
     for (const u of usersAgg) {
       const userId = u._id.toString();
@@ -52,6 +53,16 @@ const Recommendation = require('../ml/recommendation');
         .filter(m => typeof m.rating === 'number' && m.rating >= RATING_THRESHOLD)
         .map(m => m.movieId.toString());
 
+      // Lưu toàn bộ rating của user (dù có vượt threshold hay không)
+      if (!userItemRatings[userId]) {
+        userItemRatings[userId] = {};
+      }
+      (u.movies || []).forEach(m => {
+        if (m.movieId) {
+          userItemRatings[userId][m.movieId.toString()] = m.rating;
+        }
+      });
+
       if (recIds.length && relevantIds.length) {
         allRecommendations[userId] = recIds;
         allRelevantItems[userId] = relevantIds;
@@ -64,7 +75,8 @@ const Recommendation = require('../ml/recommendation');
       min_ratings: MIN_RATINGS,
       user_count: Object.keys(allRecommendations).length,
       all_recommendations: allRecommendations,
-      all_relevant_items: allRelevantItems
+      all_relevant_items: allRelevantItems,
+      user_item_ratings: userItemRatings
     };
 
     const outPath = path.join(process.cwd(), 'ml', 'eval_data_user_ratings.json');
