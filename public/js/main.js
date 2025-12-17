@@ -14,6 +14,9 @@ let recommendationsLimit = parseInt(localStorage.getItem('recommendationsLimit')
 let historyPage = 1;
 let historyTotalPages = 1;
 
+// Movie hiện đang xem ở trang Watch (dùng cho đánh giá)
+let currentWatchMovieId = null;
+
 // Khởi tạo ứng dụng khi trang được load xong
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -1080,6 +1083,9 @@ function showWatchPage(movieId) {
     
     showLoading();
     
+    // Lưu lại movieId hiện tại để phục vụ tính năng đánh giá
+    currentWatchMovieId = movieId;
+
     // Gọi API lấy thông tin chi tiết của phim đang xem
     fetch(`${API_BASE}/movies/${movieId}`)
     .then(res => res.json())
@@ -1126,7 +1132,81 @@ function displayWatchPage(movie) {
         genresContainer.innerHTML = '';
     }
     
+    // Reset UI đánh giá của user
+    const select = document.getElementById('userRatingSelect');
+    const status = document.getElementById('userRatingStatus');
+    if (select) select.value = '';
+    if (status) status.textContent = '';
+
     hideLoading();
+}
+
+// Gửi rating của user cho phim đang xem
+function submitUserRating() {
+    if (!currentUser) {
+        showToast('Vui lòng đăng nhập để đánh giá phim', 'error');
+        showLogin();
+        return;
+    }
+
+    if (!currentWatchMovieId) {
+        showToast('Không xác định được phim để đánh giá', 'error');
+        return;
+    }
+
+    const select = document.getElementById('userRatingSelect');
+    const status = document.getElementById('userRatingStatus');
+    if (!select) return;
+
+    const ratingValue = parseFloat(select.value);
+    if (!ratingValue) {
+        showToast('Vui lòng chọn số sao trước khi gửi', 'error');
+        return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+        showToast('Vui lòng đăng nhập để đánh giá phim', 'error');
+        showLogin();
+        return;
+    }
+
+    if (status) {
+        status.textContent = 'Đang gửi đánh giá...';
+    }
+
+    fetch(`${API_BASE}/ratings`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            movieId: currentWatchMovieId,
+            rating: ratingValue
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Đã lưu đánh giá của bạn', 'success');
+            if (status) {
+                status.textContent = `Bạn đã đánh giá ${ratingValue} sao cho phim này`;
+            }
+        } else {
+            showToast(data.message || 'Lưu đánh giá thất bại', 'error');
+            if (status) {
+                status.textContent = 'Lỗi khi lưu đánh giá';
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Error submitting rating:', err);
+        showToast('Lỗi khi gửi đánh giá', 'error');
+        if (status) {
+            status.textContent = 'Lỗi khi gửi đánh giá';
+        }
+    });
 }
 
 function loadWatchSuggestions(movieId) {

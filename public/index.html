@@ -241,6 +241,24 @@
                                 <p><strong>Mô tả:</strong></p>
                                 <p id="watchDescription"></p>
                             </div>
+                            <!-- User Rating -->
+                            <div class="watch-user-rating">
+                                <h3>Đánh giá của bạn</h3>
+                                <div id="watchUserRatingContent">
+                                    <select id="userRatingSelect">
+                                        <option value="">Chọn số sao</option>
+                                        <option value="1">1 ⭐</option>
+                                        <option value="2">2 ⭐⭐</option>
+                                        <option value="3">3 ⭐⭐⭐</option>
+                                        <option value="4">4 ⭐⭐⭐⭐</option>
+                                        <option value="5">5 ⭐⭐⭐⭐⭐</option>
+                                    </select>
+                                    <button class="btn btn-primary" onclick="submitUserRating()">
+                                        Gửi đánh giá
+                                    </button>
+                                    <div id="userRatingStatus" class="text-muted" style="margin-top: 8px;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

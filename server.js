@@ -9,10 +9,10 @@ connectDB();
 const authRoutes = require('./routes/auth');
 const movieRoutes = require('./routes/movies');
 const historyRoutes = require('./routes/history');
-const ratingRoutes = require('./routes/ratings');
 const recommendationRoutes = require('./routes/recommendations');
 const statsRoutes = require('./routes/stats');
 const evaluationRoutes = require('./routes/evaluation');
+const ratingRoutes = require('./routes/ratings');
 
 // Connect to database
 
@@ -31,10 +31,10 @@ app.use(express.static('public'));
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/history', historyRoutes);
-app.use('/api/ratings', ratingRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/evaluation', evaluationRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
